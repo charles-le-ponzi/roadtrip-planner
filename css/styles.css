@@ -284,6 +284,7 @@ button, input {
 /* ---------- Glossy range slider ---------- */
 #hours-slider {
   flex: 1;
+  min-width: 0; /* allow the flex item to shrink below its intrinsic track width */
   -webkit-appearance: none;
   appearance: none;
   height: 8px;
