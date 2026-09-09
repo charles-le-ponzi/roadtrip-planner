@@ -68,7 +68,7 @@ button, input {
 }
 
 .card-enter {
-  animation: slideUp .5s var(--spring);
+  animation: slideUp .5s var(--spring) backwards;
 }
 
 @keyframes slideUp {
