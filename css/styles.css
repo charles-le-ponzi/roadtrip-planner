@@ -290,6 +290,31 @@ a:hover,
   transform: translateY(-2px);
 }
 
+/* ---------- Autocomplete dropdown ---------- */
+.ac-dropdown {
+  position: fixed;
+  z-index: 40;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  max-height: 240px;
+  overflow-y: auto;
+  font-size: .85rem;
+}
+
+.ac-dropdown .ac-item {
+  padding: 10px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ac-dropdown .ac-item:hover {
+  background: linear-gradient(90deg, rgba(124,108,255,.35), rgba(110,231,255,.3));
+}
+
 /* ---------- Reduced motion ---------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
