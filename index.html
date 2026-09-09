@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Roadtrip Planner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
   <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js" defer></script>
   <link rel="stylesheet" href="css/styles.css">
@@ -12,7 +15,7 @@
 <body>
   <div id="map"></div>
 
-  <div id="control-panel" class="glass-panel">
+  <div id="control-panel" class="glass">
     <label for="from-input">From</label>
     <input type="text" id="from-input" placeholder="Starting point">
     <label for="to-input">To</label>
@@ -22,9 +25,9 @@
       <input type="range" id="hours-slider" min="1" max="12" value="4">
       <span id="hours-label">4 h</span>
     </div>
-    <button id="plan-btn">Plan trip</button>
+    <button id="plan-btn" class="glossy">Plan trip</button>
   </div>
 
-  <aside id="itinerary" hidden></aside>
+  <aside id="itinerary" class="glass" hidden></aside>
 </body>
 </html>

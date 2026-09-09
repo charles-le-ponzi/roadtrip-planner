@@ -1,6 +1,270 @@
-/* baseline — Y2K glassmorphism arrives in later tasks */
+/* ============================================================
+   Roadtrip Planner — Y2K Glassmorphism Hybrid Design System
+   ============================================================ */
+
 *, *::before, *::after { box-sizing: border-box; }
-body { margin: 0; font-family: Inter, system-ui, sans-serif; }
-#map { position: absolute; inset: 0; }
-#control-panel { position: absolute; top: 16px; left: 16px; z-index: 10; }
-#itinerary { position: absolute; top: 0; right: 0; bottom: 0; width: min(320px, 100vw); z-index: 10; }
+
+:root {
+  --glass-bg: linear-gradient(135deg, rgba(255,255,255,.38), rgba(255,255,255,.12));
+  --accent: #7c6cff;
+  --aqua: #6ee7ff;
+  --pink: #ff9ed2;
+  --text: #1a1033;
+  --radius: 22px;
+  --spring: cubic-bezier(.22, 1.4, .36, 1);
+  --font-display: 'Orbitron', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  color: var(--text);
+  background: linear-gradient(135deg, #c2e9fb, #fbc2eb, #a1c4fd, #e0c3fc);
+  background-size: 400% 400%;
+  animation: mesh 18s ease infinite;
+  overflow: hidden;
+}
+
+@keyframes mesh {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  letter-spacing: .04em;
+}
+
+/* ---------- Frosted glass ---------- */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border: 1px solid rgba(255,255,255,.55);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 32px rgba(80,60,200,.18), inset 0 1px 0 rgba(255,255,255,.6);
+}
+
+/* ---------- Springy motion ---------- */
+button, input {
+  transition: all .35s var(--spring);
+}
+
+.card-enter {
+  animation: slideUp .5s var(--spring);
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(24px) scale(.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ---------- Glossy chrome accents ---------- */
+.glossy {
+  background: linear-gradient(180deg, rgba(255,255,255,.9), rgba(255,255,255,.4) 45%, var(--accent));
+  border-radius: 999px;
+  box-shadow: 0 4px 14px rgba(124,108,255,.4), inset 0 1px 0 #fff;
+  color: #fff;
+  border: none;
+  padding: 14px 28px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: .06em;
+  text-shadow: 0 1px 2px rgba(26,16,51,.35);
+  cursor: pointer;
+}
+
+.glossy:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(124,108,255,.55), inset 0 1px 0 #fff;
+}
+
+.glossy:active {
+  transform: translateY(0) scale(.97);
+}
+
+/* ---------- Shimmer skeleton (loading states) ---------- */
+.shimmer {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255,255,255,.35);
+  border-radius: 12px;
+}
+
+.shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 20%, rgba(255,255,255,.75) 50%, transparent 80%);
+  transform: translateX(-100%);
+  animation: shimmer-sweep 1.4s ease infinite;
+}
+
+@keyframes shimmer-sweep {
+  to { transform: translateX(100%); }
+}
+
+/* ---------- Map ---------- */
+#map {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+/* ---------- Control panel: mobile bottom sheet / desktop floating card ---------- */
+#control-panel {
+  position: fixed;
+  z-index: 20;
+  width: 100%;
+  bottom: 0;
+  left: 0;
+  padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+#control-panel label {
+  display: block;
+  font-size: .78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  opacity: .75;
+  margin: 10px 0 4px;
+}
+
+#control-panel input[type="text"] {
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 1rem;
+  font-family: var(--font-body);
+  color: var(--text);
+  background: rgba(255,255,255,.32);
+  border: 1px solid rgba(255,255,255,.6);
+  border-radius: 14px;
+  outline: none;
+}
+
+#control-panel input[type="text"]:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(124,108,255,.25);
+  transform: translateY(-2px);
+}
+
+.hours-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.hours-row label {
+  margin: 0;
+  white-space: nowrap;
+}
+
+#hours-label {
+  font-family: var(--font-display);
+  font-weight: 700;
+  min-width: 42px;
+  text-align: right;
+}
+
+#plan-btn {
+  width: 100%;
+  margin-top: 18px;
+}
+
+@media (min-width: 768px) {
+  #control-panel {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    bottom: auto;
+    width: 320px;
+    padding: 20px;
+    border-radius: var(--radius);
+  }
+
+  #plan-btn { width: auto; }
+}
+
+/* ---------- Glossy range slider ---------- */
+#hours-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--aqua), var(--accent), var(--pink));
+  outline: none;
+  cursor: pointer;
+}
+
+#hours-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff 0%, rgba(255,255,255,.85) 40%, var(--accent) 100%);
+  border: 2px solid rgba(255,255,255,.9);
+  box-shadow: 0 3px 10px rgba(124,108,255,.55), inset 0 1px 2px #fff;
+  transition: transform .35s var(--spring);
+}
+
+#hours-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+#hours-slider::-moz-range-thumb {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff 0%, rgba(255,255,255,.85) 40%, var(--accent) 100%);
+  border: 2px solid rgba(255,255,255,.9);
+  box-shadow: 0 3px 10px rgba(124,108,255,.55), inset 0 1px 2px #fff;
+  transition: transform .35s var(--spring);
+}
+
+#hours-slider::-moz-range-thumb:hover {
+  transform: scale(1.15);
+}
+
+/* ---------- Itinerary: mobile drawer / desktop sidebar ---------- */
+#itinerary {
+  position: fixed;
+  z-index: 30;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(320px, 100vw);
+  padding: 20px;
+  overflow-y: auto;
+  border-radius: var(--radius) 0 0 var(--radius);
+  transform: translateX(100%);
+  transition: transform .45s var(--spring);
+}
+
+#itinerary.open {
+  transform: translateX(0);
+}
+
+@media (min-width: 768px) {
+  #itinerary {
+    position: fixed;
+    transform: none;
+    border-radius: var(--radius);
+    top: 16px;
+    bottom: 16px;
+  }
+}
+
+/* ---------- Generic hover lift for interactive elements ---------- */
+button:hover,
+a:hover,
+.glass-card:hover {
+  transform: translateY(-2px);
+}
