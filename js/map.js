@@ -6,8 +6,13 @@
 
 const ROUTE_SOURCE = 'route';
 const ROUTE_LAYER = 'route-line';
-const ROUTE_LINE_WIDTH = 4; // keep in sync with the layer paint below
+const ROUTE_LINE_WIDTH = 4; // passed directly into the layer paint below
 const DRAW_DURATION_MS = 1500;
+
+// Respect the user's OS-level animation preference: skip fly/draw-on animations.
+const REDUCED_MOTION =
+  typeof matchMedia !== 'undefined' &&
+  matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const markers = []; // every maplibregl.Marker added by this module
 let drawRafId = 0; // active draw-on animation frame
@@ -48,10 +53,14 @@ export function initMap(el) {
  * any previous route source/layer and markers are removed first.
  */
 export function drawRoute(map, geometry) {
+  if (!geometry || geometry.type !== 'LineString') {
+    throw new Error('drawRoute expects a GeoJSON LineString geometry');
+  }
+
   // Re-planning a trip: wipe the previous route + markers before re-adding.
   clearRoute(map);
 
-  map.addSource(ROUTE_SOURCE, { data: { type: 'Feature', geometry } });
+  map.addSource(ROUTE_SOURCE, { type: 'geojson', data: { type: 'Feature', geometry } });
   map.addLayer({
     id: ROUTE_LAYER,
     type: 'line',
@@ -70,8 +79,10 @@ export function drawRoute(map, geometry) {
   // mid-flight). Start the draw-on only once the camera is at rest; if the
   // user interrupted the fly, just show the full line.
   map
-    .fitBounds(b, { padding: 40, duration: 1200 })
-    .then(() => animateDrawOn(map, geometry.coordinates))
+    .fitBounds(b, { padding: 40, duration: REDUCED_MOTION ? 0 : 1200 })
+    .then(() =>
+      REDUCED_MOTION ? finalizeRouteLine(map) : animateDrawOn(map, geometry.coordinates),
+    )
     .catch(() => finalizeRouteLine(map));
 }
 

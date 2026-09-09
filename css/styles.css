@@ -135,7 +135,7 @@ button, input {
   position: relative;
   width: 18px;
   height: 18px;
-  cursor: pointer;
+  cursor: default;
 }
 
 .map-marker__dot {
