@@ -371,7 +371,6 @@ button, input {
 
 @media (min-width: 768px) {
   #itinerary {
-    position: fixed;
     transform: none;
     border-radius: var(--radius);
     top: 16px;
@@ -381,8 +380,7 @@ button, input {
 
 /* ---------- Generic hover lift for interactive elements ---------- */
 button:hover,
-a:hover,
-.glass-card:hover {
+a:hover {
   transform: translateY(-2px);
 }
 
@@ -510,6 +508,13 @@ a:hover,
 
 .toast[hidden] {
   display: none;
+}
+
+/* On mobile, lift the toast above the bottom control sheet */
+@media (max-width: 767px) {
+  .toast {
+    bottom: calc(60vh + 16px);
+  }
 }
 
 @keyframes toast-in {
