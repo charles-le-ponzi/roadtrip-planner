@@ -89,7 +89,7 @@ function friendlyRouteError(e) {
   if (/timed out|timeout/i.test(msg)) return 'Routing service is unavailable, try again';
   if (/OSRM 400/.test(msg) || /no route found/i.test(msg)) return "Couldn't find a route between those points";
   if (/OSRM 5\d\d/.test(msg)) return 'Routing service is unavailable, try again';
-  return 'Routing service is unavailable, try again';
+  return `Something went wrong: ${msg}`;
 }
 
 // ---------- Day building ----------
@@ -172,6 +172,9 @@ async function planTrip() {
     itineraryEl.hidden = false;
     itineraryEl.classList.add('open');
   } catch (e) {
+    itineraryEl.replaceChildren(); // clear the loading skeleton on failure
+    itineraryEl.classList.remove('open');
+    itineraryEl.hidden = true;
     toast(friendlyRouteError(e));
   } finally {
     planBtn.disabled = false;

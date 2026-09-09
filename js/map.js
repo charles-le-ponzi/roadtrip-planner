@@ -168,8 +168,9 @@ function addPulseMarker(map, lngLat, label, variant) {
 
   const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
     .setLngLat(lngLat)
-    .setTooltip(
-      new maplibregl.Tooltip({ text: label, offset: 14, className: 'map-marker-tip' }),
+    .setPopup(
+      new maplibregl.Popup({ offset: 14, closeButton: false, className: 'map-marker-tip' })
+        .setText(label),
     )
     .addTo(map);
   markers.push(marker);
