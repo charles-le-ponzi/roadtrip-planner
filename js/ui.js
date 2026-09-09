@@ -70,3 +70,70 @@ export function attachAutocomplete(inputEl, dropdownEl) {
   window.addEventListener('scroll', () => { if (!dropdownEl.hidden) positionDropdown(); }, true);
   window.addEventListener('resize', () => { if (!dropdownEl.hidden) positionDropdown(); });
 }
+
+// ---------- Itinerary ----------
+
+export function formatDrive(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.round((seconds % 3600) / 60);
+  return `≈ ${h}h ${m}m`;
+}
+
+export function renderItinerary(containerEl, days) {
+  containerEl.replaceChildren();
+
+  days.forEach((day, i) => {
+    const card = document.createElement('div');
+    card.className = 'glass card-enter itinerary-card';
+    card.style.animationDelay = `${i * 80}ms`;
+
+    const heading = document.createElement('h3');
+    heading.textContent = `Day ${day.day}`;
+    card.appendChild(heading);
+
+    const townLine = document.createElement('div');
+    townLine.className = 'itinerary-town';
+    townLine.textContent = day.town ? day.town.name : 'No overnight stop found';
+    card.appendChild(townLine);
+
+    const driveLine = document.createElement('div');
+    driveLine.className = 'itinerary-drive';
+    driveLine.textContent = formatDrive(day.driveSeconds);
+    card.appendChild(driveLine);
+
+    const lodgingLabel = document.createElement('div');
+    lodgingLabel.className = 'lodging-label';
+    lodgingLabel.textContent = 'Lodging';
+    card.appendChild(lodgingLabel);
+
+    const lodgingList = document.createElement('div');
+    lodgingList.className = 'lodging-list';
+    if (!day.lodging.length) {
+      const none = document.createElement('div');
+      none.className = 'itinerary-none';
+      none.textContent = 'No lodging found nearby';
+      lodgingList.appendChild(none);
+    } else {
+      for (const spot of day.lodging) {
+        const mapsChip = document.createElement('a');
+        mapsChip.className = 'lodging-chip';
+        mapsChip.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${spot.name} ${spot.lat} ${spot.lon}`)}`;
+        mapsChip.target = '_blank';
+        mapsChip.rel = 'noopener';
+        mapsChip.textContent = spot.name;
+
+        const bookingChip = document.createElement('a');
+        bookingChip.className = 'lodging-chip lodging-chip--booking';
+        bookingChip.href = `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(spot.name)}`;
+        bookingChip.target = '_blank';
+        bookingChip.rel = 'noopener';
+        bookingChip.textContent = 'Booking';
+
+        lodgingList.append(mapsChip, bookingChip);
+      }
+    }
+    card.appendChild(lodgingList);
+
+    containerEl.appendChild(card);
+  });
+}
