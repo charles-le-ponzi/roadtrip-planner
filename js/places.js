@@ -12,13 +12,20 @@ const MIRRORS = [
 export async function overpass(query) {
   let lastErr;
   for (const m of MIRRORS) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 12000);
     try {
-      const res = await fetch(m, { method: "POST", body: `data=${encodeURIComponent(query)}` });
+      const res = await fetch(m, { method: "POST", body: `data=${encodeURIComponent(query)}`, headers: { "Content-Type": "application/x-www-form-urlencoded" }, signal: ctrl.signal });
       if (!res.ok) throw new Error(`Overpass ${res.status}`);
-      return (await res.json()).elements;
+      const j = await res.json();
+      if (!j || !Array.isArray(j.elements)) throw new Error("Overpass: no elements");
+      return j.elements;
     } catch (e) { lastErr = e; }
+    finally { clearTimeout(t); }
   }
-  throw lastErr;
+  const err = new Error("Map data service unavailable, try again");
+  err.cause = lastErr;
+  throw err;
 }
 export const nearestTownQuery = (lat, lon) =>
   `[out:json][timeout:25];node["place"~"city|town|village"](around:30000,${lat},${lon});out center;`;
