@@ -11,6 +11,12 @@ test("splits at budget boundary", () => {
 test("multiple splits", () => {
   assert.deepStrictEqual(splitDays({ steps: [{ duration: 3600 }, { duration: 3600 }, { duration: 3600 }] }, 1), [0, 1, 2]);
 });
+test("empty steps = no splits", () => {
+  assert.deepStrictEqual(splitDays({ steps: [] }, 3), []);
+});
+test("single step over budget", () => {
+  assert.deepStrictEqual(splitDays({ steps: [{ duration: 5000 }] }, 1), [0]);
+});
 test("pointAtStep returns step end coords", () => {
   const route = { steps: [{ geometry: { coordinates: [[0, 0], [1, 1]] } }] };
   assert.deepStrictEqual(pointAtStep(route, 0), [1, 1]);
