@@ -452,6 +452,32 @@ a:hover,
   font-style: italic;
 }
 
+/* ---------- Toast: glass notification, bottom center ---------- */
+.toast {
+  position: fixed;
+  z-index: 100;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 14px 22px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: .9rem;
+  text-align: center;
+  animation: toast-in .4s var(--spring) backwards;
+  pointer-events: none;
+}
+
+.toast[hidden] {
+  display: none;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translate(-50%, 24px) scale(.96); }
+  to   { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+
 /* ---------- Reduced motion ---------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
