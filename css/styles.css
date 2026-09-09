@@ -200,8 +200,16 @@ button, input {
   left: 0;
   max-height: 60vh; /* keep map attribution/zoom reachable; scroll internally */
   overflow-y: auto;
+  scrollbar-width: none; /* Firefox: hide scrollbar, keep scroll */
+  -webkit-overflow-scrolling: touch;
   padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
   border-radius: var(--radius) var(--radius) 0 0;
+}
+
+#control-panel::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 #control-panel label {
@@ -235,14 +243,15 @@ button, input {
 
 .hours-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 8px 10px;
   margin-top: 14px;
 }
 
 .hours-row label {
+  flex: 1 1 100%;
   margin: 0;
-  white-space: nowrap;
 }
 
 #hours-label {
@@ -264,6 +273,7 @@ button, input {
     left: 16px;
     bottom: auto;
     width: 320px;
+    max-height: calc(100vh - 32px);
     padding: 20px;
     border-radius: var(--radius);
   }
@@ -328,9 +338,17 @@ button, input {
   width: min(320px, 100vw);
   padding: 20px;
   overflow-y: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
   border-radius: var(--radius) 0 0 var(--radius);
   transform: translateX(100%);
   transition: transform .45s var(--spring);
+}
+
+#itinerary::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 #itinerary.open {
@@ -394,7 +412,15 @@ a:hover {
   max-width: calc(100vw - 16px); /* never overflow the viewport */
   max-height: 240px;
   overflow-y: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
   font-size: .85rem;
+}
+
+.ac-dropdown::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 .ac-dropdown .ac-item {
