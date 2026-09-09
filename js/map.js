@@ -17,6 +17,7 @@ const REDUCED_MOTION =
 const markers = []; // every maplibregl.Marker added by this module
 let drawRafId = 0; // active draw-on animation frame
 let drawCancel = null; // aborts the active draw-on (removes listeners)
+let pendingMoveEnd = null; // moveend handler armed by drawRoute
 
 function cancelDraw() {
   if (drawRafId) cancelAnimationFrame(drawRafId);
@@ -33,6 +34,10 @@ function cancelDraw() {
  */
 export function clearRoute(map) {
   cancelDraw();
+  if (pendingMoveEnd) {
+    map.off('moveend', pendingMoveEnd);
+    pendingMoveEnd = null;
+  }
   if (map.getLayer(ROUTE_LAYER)) map.removeLayer(ROUTE_LAYER);
   if (map.getSource(ROUTE_SOURCE)) map.removeSource(ROUTE_SOURCE);
   for (const m of markers.splice(0)) m.remove();
@@ -75,15 +80,26 @@ export function drawRoute(map, geometry) {
   const b = new maplibregl.LngLatBounds();
   geometry.coordinates.forEach((c) => b.extend(c));
 
-  // fitBounds resolves on moveend (rejects if the user grabs the camera
-  // mid-flight). Start the draw-on only once the camera is at rest; if the
-  // user interrupted the fly, just show the full line.
-  map
-    .fitBounds(b, { padding: 40, duration: REDUCED_MOTION ? 0 : 1200 })
-    .then(() =>
-      REDUCED_MOTION ? finalizeRouteLine(map) : animateDrawOn(map, geometry.coordinates),
-    )
-    .catch(() => finalizeRouteLine(map));
+  // MapLibre's fitBounds returns the map (NOT a Promise like Mapbox GL JS),
+  // so wait for the 'moveend' event to know when the camera is at rest. A
+  // safety timeout covers the degenerate case where the bounds are already
+  // in view and no moveend fires.
+  let settled = false;
+  const beginDrawOn = () => {
+    if (settled) return;
+    settled = true;
+    if (pendingMoveEnd) {
+      map.off('moveend', pendingMoveEnd);
+      pendingMoveEnd = null;
+    }
+    if (!map.getLayer(ROUTE_LAYER)) return; // route cleared mid-flight
+    if (REDUCED_MOTION) finalizeRouteLine(map);
+    else animateDrawOn(map, geometry.coordinates);
+  };
+  pendingMoveEnd = beginDrawOn;
+  map.once('moveend', beginDrawOn);
+  map.fitBounds(b, { padding: 40, duration: REDUCED_MOTION ? 0 : 1200 });
+  setTimeout(beginDrawOn, REDUCED_MOTION ? 50 : 1400);
 }
 
 /** Total line length in "line units" (multiples of line-width), at the current camera. */
