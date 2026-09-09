@@ -179,3 +179,9 @@ async function planTrip() {
 }
 
 planBtn.addEventListener('click', planTrip);
+
+// ---------- Itinerary close (mobile drawer) ----------
+const closeBtn = document.getElementById('itinerary-close');
+closeBtn.addEventListener('click', () => {
+  itineraryEl.classList.remove('open');
+});

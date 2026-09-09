@@ -337,6 +337,38 @@ button, input {
   transform: translateX(0);
 }
 
+/* Close button: only visible while the mobile drawer is open */
+#itinerary-close {
+  position: fixed;
+  z-index: 40;
+  top: calc(12px + env(safe-area-inset-top));
+  right: calc(12px);
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: var(--glass-bg);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  color: var(--text);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(124, 108, 255, .3), inset 0 1px 0 rgba(255, 255, 255, .6);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .3s var(--spring), transform .3s var(--spring);
+}
+#itinerary.open ~ #itinerary-close {
+  opacity: 1;
+  pointer-events: auto;
+}
+#itinerary-close:hover { transform: scale(1.08); }
+
+@media (min-width: 768px) {
+  #itinerary-close { display: none; }
+}
+
 @media (min-width: 768px) {
   #itinerary {
     position: fixed;
