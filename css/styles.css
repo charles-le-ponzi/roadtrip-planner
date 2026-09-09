@@ -1,0 +1,5 @@
+/* baseline — Y2K glassmorphism arrives in later tasks */
+body { margin: 0; font-family: Inter, system-ui, sans-serif; }
+#map { position: absolute; inset: 0; }
+#control-panel { position: absolute; top: 16px; left: 16px; z-index: 10; }
+#itinerary { position: absolute; top: 0; right: 0; bottom: 0; width: 320px; z-index: 10; }
