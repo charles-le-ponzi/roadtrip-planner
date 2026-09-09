@@ -73,10 +73,15 @@ function showLoadingSkeleton(itineraryEl) {
 
 // ---------- Route fetching with timeout ----------
 async function fetchRouteWithTimeout(from, to) {
+  let timer;
   const timeout = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('Route request timed out')), ROUTE_TIMEOUT_MS),
+    (timer = setTimeout(() => reject(new Error('Route request timed out')), ROUTE_TIMEOUT_MS)),
   );
-  return Promise.race([fetchRoute(from, to), timeout]);
+  try {
+    return await Promise.race([fetchRoute(from, to), timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function friendlyRouteError(e) {
