@@ -1,6 +1,22 @@
 import test from "node:test";
 import assert from "node:assert";
 import { splitDays, pointAtStep } from "../js/itinerary.js";
+import { flattenRoute } from "../js/route.js";
+
+test("flattenRoute: nested legs[].steps -> flat route.steps", () => {
+  const route = {
+    legs: [
+      { steps: [{ duration: 100 }, { duration: 200 }] },
+      { steps: [{ duration: 300 }] },
+    ],
+  };
+  const flat = flattenRoute(route);
+  assert.deepStrictEqual(flat.steps.map((s) => s.duration), [100, 200, 300]);
+});
+test("flattenRoute: single leg", () => {
+  const flat = flattenRoute({ legs: [{ steps: [{ duration: 5 }] }] });
+  assert.strictEqual(flat.steps.length, 1);
+});
 
 test("short trip = no splits", () => {
   assert.deepStrictEqual(splitDays({ steps: [{ duration: 1800 }, { duration: 1800 }] }, 3), []);
