@@ -24,83 +24,65 @@ export async function reverseGeocode(lat, lon) {
   if (!d || !d.name) return null;
   return { name: d.name, lat: Number(d.lat), lon: Number(d.lon) };
 }
-// Overpass mirrors, fastest-first (measured 2026-09-10 from the user's
-// network). mail.ru is the workhorse (0.6–2.6s with full data). kumi/api.de
-// are fallbacks — frequently slow or down, but the race makes that free.
-// NOTE: overpass.osm.ch and overpass.private.coffee were removed: both return
-// 0 elements for downtown LA (225 hotels on mail.ru) — sparse/broken datasets
-// for this query, so they'd mask real results in a race.
+// Overpass mirrors, primary first (measured 2026-09-10 from the user's
+// network). We send ONE request at a time — the old 3-way parallel race
+// tripled our request load per stop and got multi-stop trips rate-limited
+// (429). Fallbacks only fire when the primary fails.
 export const MIRRORS = [
   "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter",
   "https://overpass-api.de/api/interpreter",
 ];
 const OVERPASS_UA = 'roadtrip-planner/1.0 (https://github.com/charles-le-ponzi/roadtrip-planner)';
-const MIRROR_TIMEOUT_MS = 10000;
-// If the first success comes back EMPTY, hold this long for the other mirrors:
-// a sparse mirror must not mask real data that a slower mirror is still
-// computing. (Verified: mirrors disagree on emptiness for the same area.)
-const EMPTY_GRACE_MS = 2000;
-export async function overpass(query) {
-  const controllers = MIRRORS.map(() => new AbortController());
-  let lastErr;
-  const attempts = MIRRORS.map((m, i) => {
-    const ctrl = controllers[i];
-    const t = setTimeout(() => ctrl.abort(), MIRROR_TIMEOUT_MS);
-    return fetch(m, { method: "POST", body: `data=${encodeURIComponent(query)}`, headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": OVERPASS_UA }, signal: ctrl.signal })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`Overpass ${res.status}`);
-        const j = await res.json();
-        if (!j || !Array.isArray(j.elements)) throw new Error("Overpass: no elements");
-        return j.elements;
-      })
-      .finally(() => clearTimeout(t));
-  });
-  const elements = await new Promise((resolve, reject) => {
-    let pending = MIRRORS.length;
-    let settled = false;
-    let gotEmpty = null; // first empty success, held in case a later mirror has data
-    let emptyGrace = null;
-    const finish = (v) => {
-      if (settled) return;
-      settled = true;
-      if (emptyGrace) clearTimeout(emptyGrace);
-      resolve(v);
-    };
-    attempts.forEach((p) => {
-      p.then(
-        (v) => {
-          if (settled) return; // race already won — ignore late arrivals
-          pending--;
-          if (v.length > 0) { finish(v); return; } // non-empty wins immediately
-          if (!gotEmpty) {
-            gotEmpty = v;
-            emptyGrace = setTimeout(() => { if (pending > 0) finish(gotEmpty); }, EMPTY_GRACE_MS);
-          }
-          if (pending === 0) finish(gotEmpty); // all mirrors settled, accept empty
-        },
-        (e) => {
-          if (settled) return; // race already won — ignore late failures
-          pending--;
-          lastErr = e;
-          if (pending === 0) {
-            if (gotEmpty) finish(gotEmpty);
-            else {
-              const err = new Error("Map data service unavailable, try again");
-              err.cause = lastErr;
-              reject(err);
-            }
-          }
-        },
-      );
+// Public mirrors are slow under load: mail.ru routinely takes 6–15s for the
+// lodging query (measured 2026-09-10). The old 10s timeout aborted healthy
+// slow responses and masked them as "Map data service unavailable" — the
+// "rate limited" symptom. 30s matches the [timeout:25] in the query itself.
+export const MIRROR_TIMEOUT_MS = 30000;
+
+async function queryMirror(mirror, query, timeoutMs = MIRROR_TIMEOUT_MS) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(mirror, {
+      method: "POST",
+      body: `data=${encodeURIComponent(query)}`,
+      headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": OVERPASS_UA },
+      signal: ctrl.signal,
     });
-  });
-  controllers.forEach((c) => c.abort()); // stop the losing mirrors
-  return elements;
+    if (!res.ok) throw new Error(`Overpass ${res.status}`);
+    const j = await res.json();
+    if (!j || !Array.isArray(j.elements)) throw new Error("Overpass: no elements");
+    return j.elements;
+  } finally {
+    clearTimeout(t);
+  }
+}
+// Exported for tests: lets a unit test exercise the abort path in milliseconds
+// instead of waiting out the real 30s timeout.
+export { queryMirror };
+
+// Sequential primary-then-fallback: at most one in-flight Overpass request at
+// a time, so a 4-stop trip sends 4 requests instead of 12. An empty result
+// from the primary is returned as-is — with a single source of truth there is
+// no second mirror to cross-check against.
+export async function overpass(query) {
+  let lastErr;
+  for (const mirror of MIRRORS) {
+    try {
+      return await queryMirror(mirror, query);
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  const err = new Error("Map data service unavailable, try again");
+  err.cause = lastErr;
+  throw err;
 }
 export const nearestTownQuery = (lat, lon) =>
   `[out:json][timeout:25];node["place"~"city|town|village"](around:30000,${lat},${lon});out center;`;
 // Hotels are often mapped as ways, not nodes — query both, or most of the
-// lodging in a town is invisible (downtown LA: 59 nodes vs 417 node+way).
+// lodging in a town is invisible. 5km radius: plenty for an overnight stop,
+// and a smaller result set means a faster, lighter response from the mirror.
 export const lodgingQuery = (lat, lon) =>
-  `[out:json][timeout:25];(node["tourism"~"hotel|guest_house|camp_site|hostel|motel"](around:12000,${lat},${lon});way["tourism"~"hotel|guest_house|camp_site|hostel|motel"](around:12000,${lat},${lon}););out center;`;
+  `[out:json][timeout:25];(node["tourism"~"hotel|guest_house|camp_site|hostel|motel"](around:5000,${lat},${lon});way["tourism"~"hotel|guest_house|camp_site|hostel|motel"](around:5000,${lat},${lon}););out center;`;

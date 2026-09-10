@@ -204,6 +204,13 @@ function animateDrawOn(map, coordinates) {
 /**
  * Shared marker factory: a small pulsing glass dot (CSS in styles.css)
  * with a tooltip showing the label.
+ *
+ * The element MapLibre positions is kept a fixed 18px so its anchor stays
+ * pinned to the geographic point; the visible dot/ring live in an inner
+ * `.map-marker__scale` wrapper that `setupMarkerScaling` shrinks as you zoom
+ * out. Scaling the inner wrapper (not the element) is what keeps the dot
+ * centered on its location at every zoom — scaling the element itself would
+ * shift the dot off its anchor.
  */
 function addPulseMarker(map, lngLat, label, variant) {
   const el = document.createElement('div');
@@ -211,11 +218,18 @@ function addPulseMarker(map, lngLat, label, variant) {
   el.setAttribute('role', 'img');
   el.setAttribute('aria-label', label);
 
+  const scale = document.createElement('div');
+  scale.className = 'map-marker__scale';
   const ring = document.createElement('span');
   ring.className = 'map-marker__ring';
   const dot = document.createElement('span');
   dot.className = 'map-marker__dot';
-  el.append(ring, dot);
+  scale.append(ring, dot);
+  el.append(scale);
+  // Apply the current zoom's scale immediately. setupMarkerScaling() only
+  // re-applies on *future* zoom events, so without this a marker added while
+  // zoomed out would show full-size until the user zooms.
+  scale.style.transform = `scale(${markerScaleForZoom(map.getZoom())})`;
 
   const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
     .setLngLat(lngLat)
@@ -226,6 +240,40 @@ function addPulseMarker(map, lngLat, label, variant) {
     .addTo(map);
   markers.push(marker);
   return marker;
+}
+
+// ---------- Zoom-aware marker scaling ----------
+// MapLibre markers are fixed-pixel DOM elements: without this, an 18px dot
+// (whose pulse ring expands to ~2.1x) looks the same size at zoom 3 as at
+// zoom 11, so on a continent-wide trip the lodge/stop markers dwarf the map.
+// We scale the inner wrapper down as the zoom drops, clamped so markers stay
+// visible but stop dominating the view.
+const MARKER_FULL_ZOOM = 12;   // at/above this zoom markers are full size
+const MARKER_MIN_SCALE = 0.45; // smallest size, reached at/ below MARKER_MIN_ZOOM
+const MARKER_MIN_ZOOM = 2;
+
+function markerScaleForZoom(zoom) {
+  if (zoom >= MARKER_FULL_ZOOM) return 1;
+  const t = (zoom - MARKER_MIN_ZOOM) / (MARKER_FULL_ZOOM - MARKER_MIN_ZOOM);
+  return MARKER_MIN_SCALE + (1 - MARKER_MIN_SCALE) * Math.max(0, Math.min(1, t));
+}
+
+let markerScalingBound = false;
+/**
+ * Bind the map's zoom to every marker's inner scale wrapper. Call once after
+ * the map is created (before or after adding markers — it re-reads the DOM on
+ * each zoom, so markers added later pick up the current scale automatically).
+ */
+export function setupMarkerScaling(map) {
+  if (markerScalingBound) return;
+  markerScalingBound = true;
+  const apply = () => {
+    const s = markerScaleForZoom(map.getZoom());
+    document.querySelectorAll('.map-marker__scale')
+      .forEach((el) => { el.style.transform = `scale(${s})`; });
+  };
+  map.on('zoom', apply);
+  apply();
 }
 
 /** Waypoint marker (accent color, pulsing). */

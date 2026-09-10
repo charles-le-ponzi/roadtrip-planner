@@ -3,7 +3,7 @@ import { attachAutocomplete, renderItinerary, updateDayTown, updateDayLodging, u
 import { fetchRoute } from './route.js';
 import { overpass, lodgingQuery, reverseGeocode } from './places.js';
 import { splitDays, computeDays } from './itinerary.js';
-import { initMap, drawRoute, addStopMarker, addDestinationMarker, setMarkerLabel } from './map.js';
+import { initMap, drawRoute, addStopMarker, addDestinationMarker, setMarkerLabel, setupMarkerScaling } from './map.js';
 
 const ROUTE_TIMEOUT_MS = 15000;
 const NOMINATIM_SPACING_MS = 1100; // Nominatim policy: max 1 req/s
@@ -17,6 +17,9 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // ---------- Map ----------
 const map = initMap(document.getElementById('map'));
 const mapReady = new Promise((resolve) => map.once('load', resolve));
+// Scale markers with zoom so lodge/stop dots don't dwarf a continent-wide view.
+// Binds once; markers added later pick up the current scale automatically.
+setupMarkerScaling(map);
 
 // ---------- Autocomplete ----------
 for (const id of ['from-input', 'to-input']) {

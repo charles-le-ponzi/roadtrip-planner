@@ -80,20 +80,20 @@ export function formatDrive(seconds) {
   return h > 0 ? `≈ ${h}h ${m}m` : `≈ ${m}m`;
 }
 
-// Name+address query — Google resolves this to the actual business (street
-// view, phone, website, directions). A bare "lat,lon" query only drops a pin
-// at the coordinates with no business attached.
+// Google Maps of the lodging's exact address — the place page, with the
+// business attached (street view, phone, website, directions). Address first
+// so a name collision can't resolve to a same-named property elsewhere.
 export const mapsUrl = (spot) =>
-  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(spot.name + (spot.address ? `, ${spot.address}` : ''))}`;
+  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+    [spot.address, spot.name].filter(Boolean).join(', '),
+  )}`;
 
-// The property's own website is the actual room listing (OSM tags carry it for
-// ~half of mapped hotels). Booking.com deep-links don't survive its redirect
-// (verified: ?ss= is dropped to a bare searchresults.html), so when OSM has no
-// website, search for the property by name+address — its own listing pages
-// (Booking, Expedia, the hotel site) rank at the top of those results.
+// The lodging's own website when OSM has one (the actual room listing).
+// Otherwise Google Maps for that specific lodging — its place page carries
+// its website and booking options, and it always resolves to the right
+// property. (The old fallback was a generic web search: "confusing links".)
 export const bookingUrl = (spot) =>
-  spot.website ||
-  `https://www.google.com/search?q=${encodeURIComponent(spot.name + (spot.address ? `, ${spot.address}` : '') + ' booking')}`;
+  spot.website || mapsUrl(spot);
 
 function buildLodgingList(lodging, townName) {
   const list = document.createElement('div');
@@ -105,22 +105,45 @@ function buildLodgingList(lodging, townName) {
     list.appendChild(none);
     return list;
   }
+  // One self-contained card per lodging: name + address on top, its two
+  // actions underneath. No more flat [name][Booking][name][Booking] strip
+  // where you couldn't tell which button belonged to which lodge.
   for (const spot of lodging) {
-    const mapsChip = document.createElement('a');
-    mapsChip.className = 'lodging-chip';
-    mapsChip.href = mapsUrl(spot);
-    mapsChip.target = '_blank';
-    mapsChip.rel = 'noopener';
-    mapsChip.textContent = spot.name;
+    const item = document.createElement('div');
+    item.className = 'lodging-item';
 
-    const bookingChip = document.createElement('a');
-    bookingChip.className = 'lodging-chip lodging-chip--booking';
-    bookingChip.href = bookingUrl(spot);
-    bookingChip.target = '_blank';
-    bookingChip.rel = 'noopener';
-    bookingChip.textContent = 'Booking';
+    const nameEl = document.createElement('div');
+    nameEl.className = 'lodging-item__name';
+    nameEl.textContent = spot.name;
+    item.appendChild(nameEl);
 
-    list.append(mapsChip, bookingChip);
+    if (spot.address) {
+      const addrEl = document.createElement('div');
+      addrEl.className = 'lodging-item__address';
+      addrEl.textContent = spot.address;
+      item.appendChild(addrEl);
+    }
+
+    const actions = document.createElement('div');
+    actions.className = 'lodging-item__actions';
+
+    const mapsBtn = document.createElement('a');
+    mapsBtn.className = 'lodging-btn';
+    mapsBtn.href = mapsUrl(spot);
+    mapsBtn.target = '_blank';
+    mapsBtn.rel = 'noopener';
+    mapsBtn.textContent = 'Maps';
+
+    const bookBtn = document.createElement('a');
+    bookBtn.className = 'lodging-btn lodging-btn--book';
+    bookBtn.href = bookingUrl(spot);
+    bookBtn.target = '_blank';
+    bookBtn.rel = 'noopener';
+    bookBtn.textContent = spot.website ? 'Book' : 'Book / find';
+
+    actions.append(mapsBtn, bookBtn);
+    item.appendChild(actions);
+    list.appendChild(item);
   }
   return list;
 }
