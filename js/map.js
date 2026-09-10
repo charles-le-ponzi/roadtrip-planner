@@ -237,3 +237,9 @@ export function addStopMarker(map, lngLat, label) {
 export function addDestinationMarker(map, lngLat, label) {
   return addPulseMarker(map, lngLat, label, 'destination');
 }
+
+/** Update a marker's popup label in place (used when a stop's town name resolves). */
+export function setMarkerLabel(marker, label) {
+  const popup = marker && marker.getPopup && marker.getPopup();
+  if (popup) popup.setText(label);
+}

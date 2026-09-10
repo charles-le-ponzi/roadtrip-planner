@@ -80,12 +80,68 @@ export function formatDrive(seconds) {
   return h > 0 ? `≈ ${h}h ${m}m` : `≈ ${m}m`;
 }
 
+// Coordinate-based Maps link — reliably centers on the exact lodging spot.
+// (The old "name lat lon" free-text query mostly failed to resolve.)
+const mapsUrl = (spot) =>
+  `https://www.google.com/maps/search/?api=1&query=${spot.lat},${spot.lon}`;
+
+// Booking search by the nearest town (small motels rarely have their own
+// Booking listing; the town search reliably returns bookable stays).
+const bookingUrl = (townName, spot) =>
+  `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(townName || spot.name)}`;
+
+function buildLodgingList(lodging, townName) {
+  const list = document.createElement('div');
+  list.className = 'lodging-list';
+  if (!lodging.length) {
+    const none = document.createElement('div');
+    none.className = 'itinerary-none';
+    none.textContent = 'No lodging found nearby';
+    list.appendChild(none);
+    return list;
+  }
+  for (const spot of lodging) {
+    const mapsChip = document.createElement('a');
+    mapsChip.className = 'lodging-chip';
+    mapsChip.href = mapsUrl(spot);
+    mapsChip.target = '_blank';
+    mapsChip.rel = 'noopener';
+    mapsChip.textContent = spot.name;
+
+    const bookingChip = document.createElement('a');
+    bookingChip.className = 'lodging-chip lodging-chip--booking';
+    bookingChip.href = bookingUrl(townName, spot);
+    bookingChip.target = '_blank';
+    bookingChip.rel = 'noopener';
+    bookingChip.textContent = 'Booking';
+
+    list.append(mapsChip, bookingChip);
+  }
+  return list;
+}
+
+function lodgingPlaceholder() {
+  const list = document.createElement('div');
+  list.className = 'lodging-list';
+  const none = document.createElement('div');
+  none.className = 'itinerary-none';
+  none.textContent = 'Finding lodging…';
+  list.appendChild(none);
+  return list;
+}
+
+function townText(day) {
+  if (day.town) return day.town.name;
+  return day.isOvernight ? 'Finding overnight stop…' : 'Destination';
+}
+
 export function renderItinerary(containerEl, days) {
   containerEl.replaceChildren();
 
   days.forEach((day, i) => {
     const card = document.createElement('div');
     card.className = 'glass card-enter itinerary-card';
+    card.dataset.day = day.day;
     card.style.animationDelay = `${i * 80}ms`;
 
     const heading = document.createElement('h3');
@@ -94,7 +150,7 @@ export function renderItinerary(containerEl, days) {
 
     const townLine = document.createElement('div');
     townLine.className = 'itinerary-town';
-    townLine.textContent = day.town ? day.town.name : 'No overnight stop found';
+    townLine.textContent = townText(day);
     card.appendChild(townLine);
 
     const driveLine = document.createElement('div');
@@ -102,39 +158,31 @@ export function renderItinerary(containerEl, days) {
     driveLine.textContent = formatDrive(day.driveSeconds);
     card.appendChild(driveLine);
 
-    const lodgingLabel = document.createElement('div');
-    lodgingLabel.className = 'lodging-label';
-    lodgingLabel.textContent = 'Lodging';
-    card.appendChild(lodgingLabel);
+    if (day.isOvernight) {
+      const lodgingLabel = document.createElement('div');
+      lodgingLabel.className = 'lodging-label';
+      lodgingLabel.textContent = 'Lodging';
+      card.appendChild(lodgingLabel);
 
-    const lodgingList = document.createElement('div');
-    lodgingList.className = 'lodging-list';
-    if (!day.lodging.length) {
-      const none = document.createElement('div');
-      none.className = 'itinerary-none';
-      none.textContent = 'No lodging found nearby';
-      lodgingList.appendChild(none);
-    } else {
-      for (const spot of day.lodging) {
-        const mapsChip = document.createElement('a');
-        mapsChip.className = 'lodging-chip';
-        mapsChip.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${spot.name} ${spot.lat} ${spot.lon}`)}`;
-        mapsChip.target = '_blank';
-        mapsChip.rel = 'noopener';
-        mapsChip.textContent = spot.name;
-
-        const bookingChip = document.createElement('a');
-        bookingChip.className = 'lodging-chip lodging-chip--booking';
-        bookingChip.href = `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(spot.name)}`;
-        bookingChip.target = '_blank';
-        bookingChip.rel = 'noopener';
-        bookingChip.textContent = 'Booking';
-
-        lodgingList.append(mapsChip, bookingChip);
-      }
+      card.appendChild(day.lodging.length
+        ? buildLodgingList(day.lodging, day.town?.name)
+        : lodgingPlaceholder());
     }
-    card.appendChild(lodgingList);
 
     containerEl.appendChild(card);
   });
+}
+
+// Live-update a day card's town line (called when the reverse-geocode resolves).
+export function updateDayTown(dayNum, townName) {
+  const card = document.querySelector(`#itinerary .itinerary-card[data-day="${dayNum}"]`);
+  const townLine = card && card.querySelector('.itinerary-town');
+  if (townLine) townLine.textContent = townName;
+}
+
+// Live-update a day card's lodging list (called when the Overpass results land).
+export function updateDayLodging(dayNum, lodging, townName) {
+  const card = document.querySelector(`#itinerary .itinerary-card[data-day="${dayNum}"]`);
+  const list = card && card.querySelector('.lodging-list');
+  if (list) list.replaceWith(buildLodgingList(lodging, townName));
 }

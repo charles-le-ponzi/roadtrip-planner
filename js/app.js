@@ -1,13 +1,16 @@
 // app.js — orchestration (Task 9)
-import { attachAutocomplete, renderItinerary } from './ui.js';
+import { attachAutocomplete, renderItinerary, updateDayTown, updateDayLodging } from './ui.js';
 import { fetchRoute } from './route.js';
-import { overpass, nearestTownQuery, lodgingQuery } from './places.js';
-import { splitDays, pointAtStep } from './itinerary.js';
-import { initMap, drawRoute, addStopMarker, addDestinationMarker } from './map.js';
+import { overpass, lodgingQuery, reverseGeocode } from './places.js';
+import { splitDays, computeDays } from './itinerary.js';
+import { initMap, drawRoute, addStopMarker, addDestinationMarker, setMarkerLabel } from './map.js';
 
 const ROUTE_TIMEOUT_MS = 15000;
+const NOMINATIM_SPACING_MS = 1100; // Nominatim policy: max 1 req/s
 const OVERPASS_SPACING_MS = 500;
 const TOAST_MS = 4000;
+
+let currentPlanId = 0; // invalidates in-flight enrichments when a new trip is planned
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -93,61 +96,56 @@ function friendlyRouteError(e) {
 }
 
 // ---------- Day building ----------
-async function buildDays(route, dayEndIndices, to) {
-  const totalDays = dayEndIndices.length + 1;
-  const days = [];
-  let legStart = 0;
-  for (let d = 0; d < totalDays; d++) {
-    const isFinal = d === totalDays - 1;
-    const legEnd = isFinal ? route.steps.length - 1 : dayEndIndices[d];
-    let driveSeconds = 0;
-    for (let j = legStart; j <= legEnd; j++) driveSeconds += route.steps[j].duration;
-    legStart = legEnd + 1;
+// Background: fill in town names (Nominatim reverse, fast) and lodging
+// (Overpass, slow/rate-limited) for each overnight day, updating the DOM as
+// each result lands. Never blocks the route/itinerary from rendering.
+async function enrichDays(days, planId) {
+  const overnights = days.filter((d) => d.isOvernight);
+  for (const day of overnights) {
+    if (planId !== currentPlanId) return; // a newer trip superseded this one
+    const [lng, lat] = day.stopLngLat;
 
-    if (isFinal) {
-      days.push({ day: d + 1, town: null, driveSeconds, lodging: [], isOvernight: false, stopLngLat: [to.lon, to.lat] });
-      continue;
-    }
-
-    const [lng, lat] = pointAtStep(route, dayEndIndices[d]);
-
-    await sleep(OVERPASS_SPACING_MS);
-    let town = null;
+    // Town first (fast), lodging second (slow) — but both update the card live.
+    await sleep(NOMINATIM_SPACING_MS);
+    if (planId !== currentPlanId) return;
     try {
-      const townEls = await overpass(nearestTownQuery(lat, lng));
-      let best = Infinity;
-      for (const el of townEls) {
-        const tlat = el.lat ?? el.center?.lat;
-        const tlon = el.lon ?? el.center?.lon;
-        if (tlat == null || tlon == null) continue;
-        const dist = Math.hypot(tlat - lat, tlon - lng);
-        if (dist < best) { best = dist; town = { name: el.tags?.name ?? 'Unknown', lat: tlat, lon: tlon }; }
+      const town = await reverseGeocode(lat, lng);
+      if (planId !== currentPlanId) return;
+      if (town) {
+        day.town = town;
+        updateDayTown(day.day, town.name);
+        const marker = stopMarkers.get(day.day);
+        if (marker) setMarkerLabel(marker, town.name);
       }
-    } catch { /* no town found */ }
+    } catch { /* no town found — card keeps "No overnight stop found" */ }
 
     await sleep(OVERPASS_SPACING_MS);
-    let lodging = [];
+    if (planId !== currentPlanId) return;
     try {
       const lodgEls = await overpass(lodgingQuery(lat, lng));
-      lodging = lodgEls
+      if (planId !== currentPlanId) return;
+      const lodging = lodgEls
         .map((el) => ({ name: el.tags?.name ?? 'Unnamed lodging', lat: el.lat ?? el.center?.lat, lon: el.lon ?? el.center?.lon }))
         .filter((l) => l.lat != null && l.lon != null)
         .slice(0, 6);
-    } catch { /* no lodging found */ }
-
-    days.push({ day: d + 1, town, driveSeconds, lodging, isOvernight: true, stopLngLat: [lng, lat] });
+      day.lodging = lodging;
+      updateDayLodging(day.day, lodging, day.town?.name);
+    } catch { /* no lodging found — card keeps "No lodging found nearby" */ }
   }
-  return days;
 }
 
 // ---------- Plan handler ----------
 const planBtn = document.getElementById('plan-btn');
 const itineraryEl = document.getElementById('itinerary');
+const stopMarkers = new Map(); // day number -> maplibregl.Marker (overnight stops)
 
 async function planTrip() {
   const from = document.getElementById('from-input')._place;
   const to = document.getElementById('to-input')._place;
   if (!from || !to) { toast('Pick both destinations first'); return; }
+
+  const planId = ++currentPlanId; // invalidates any in-flight enrichment
+  stopMarkers.clear();
 
   planBtn.disabled = true;
   showLoadingSkeleton(itineraryEl);
@@ -155,30 +153,37 @@ async function planTrip() {
   try {
     const hoursPerDay = clampHours(parseInt(hoursSlider.value, 10) || 4);
     const route = await fetchRouteWithTimeout(from, to);
+    if (planId !== currentPlanId) return; // superseded
     const dayEndIndices = splitDays(route, hoursPerDay);
-    const days = await buildDays(route, dayEndIndices, to);
+    const days = computeDays(route, dayEndIndices, to); // sync — no network
 
+    // Render the route + itinerary immediately. Towns/lodging stream in after.
     await mapReady;
     drawRoute(map, route.geometry);
     addDestinationMarker(map, [from.lon, from.lat], from.name);
     addDestinationMarker(map, [to.lon, to.lat], to.name);
     for (const day of days) {
       if (day.isOvernight) {
-        addStopMarker(map, day.stopLngLat, day.town ? day.town.name : 'Overnight stop');
+        stopMarkers.set(day.day, addStopMarker(map, day.stopLngLat, 'Overnight stop'));
       }
     }
 
     renderItinerary(itineraryEl, days);
     itineraryEl.hidden = false;
     itineraryEl.classList.add('open');
+    planBtn.disabled = false; // unblock as soon as the trip is visible
+
+    // Stream towns + lodging into the cards in the background. Fire-and-forget:
+    // it never blocks the trip from showing, and any failure is non-fatal.
+    enrichDays(days, planId).catch(() => {});
   } catch (e) {
+    if (planId !== currentPlanId) return;
     itineraryEl.replaceChildren(); // clear the loading skeleton on failure
     itineraryEl.classList.remove('open');
     itineraryEl.hidden = true;
+    planBtn.disabled = false;
     console.error('Plan trip failed:', e);
     toast(friendlyRouteError(e));
-  } finally {
-    planBtn.disabled = false;
   }
 }
 
