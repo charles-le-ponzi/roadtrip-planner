@@ -209,9 +209,21 @@ export function updateDayTown(dayNum, townName) {
 }
 
 // Live-update a day card's lodging list (called when the Overpass results land).
-export function updateDayLodging(dayNum, lodging, townName) {
+// anchorName: when the raw stop point was remote and lodging was anchored on a
+// nearby town, pass that town so the label reads "Lodging in Durango" instead of
+// a bare "Lodging" (or a misleading "No lodging found nearby").
+export function updateDayLodging(dayNum, lodging, townName, anchorName) {
   const card = document.querySelector(`#itinerary .itinerary-card[data-day="${dayNum}"]`);
-  const list = card && card.querySelector('.lodging-list');
+  if (!card) return;
+  const label = card.querySelector('.lodging-label');
+  if (label) {
+    // Only relabel when we anchored on a town DIFFERENT from the stop's own town
+    // (or when the stop had no town name) — otherwise "Lodging in X" where X is
+    // the same town the card already shows is redundant.
+    const distinct = anchorName && (!townName || anchorName.toLowerCase() !== townName.toLowerCase());
+    label.textContent = distinct ? `Lodging in ${anchorName}` : 'Lodging';
+  }
+  const list = card.querySelector('.lodging-list');
   if (list) list.replaceWith(buildLodgingList(lodging, townName));
 }
 

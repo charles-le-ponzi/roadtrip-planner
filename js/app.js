@@ -1,13 +1,12 @@
 // app.js — orchestration (Task 9)
 import { attachAutocomplete, renderItinerary, updateDayTown, updateDayLodging, updateDayLodgingError } from './ui.js';
 import { fetchRoute } from './route.js';
-import { overpass, lodgingQuery, reverseGeocode } from './places.js';
+import { findLodging, reverseGeocode } from './places.js';
 import { splitDays, computeDays } from './itinerary.js';
 import { initMap, drawRoute, addStopMarker, addDestinationMarker, setMarkerLabel, setupMarkerScaling } from './map.js';
 
 const ROUTE_TIMEOUT_MS = 15000;
 const NOMINATIM_SPACING_MS = 1100; // Nominatim policy: max 1 req/s
-const OVERPASS_SPACING_MS = 500;
 const TOAST_MS = 4000;
 
 let currentPlanId = 0; // invalidates in-flight enrichments when a new trip is planned
@@ -122,10 +121,13 @@ async function enrichDays(days, planId) {
       }
     } catch { /* no town found — card keeps "No overnight stop found" */ }
 
-    await sleep(OVERPASS_SPACING_MS);
+    // No per-stop Overpass sleep here: the global limiter in places.js already
+    // guarantees >= OVERPASS_MIN_INTERVAL_MS between ANY two Overpass requests
+    // (mirror retries, the two-stage fallback, and across stops). Spacing is a
+    // property of the data layer, not the caller.
     if (planId !== currentPlanId) return;
     try {
-      const lodgEls = await overpass(lodgingQuery(lat, lng));
+      const { elements: lodgEls, anchorName } = await findLodging(lat, lng);
       if (planId !== currentPlanId) return;
       const lodging = lodgEls
         .map((el) => {
@@ -146,7 +148,10 @@ async function enrichDays(days, planId) {
         .sort((a, b) => (a.name === 'Unnamed lodging' ? 1 : 0) - (b.name === 'Unnamed lodging' ? 1 : 0))
         .slice(0, 6);
       day.lodging = lodging;
-      updateDayLodging(day.day, lodging, day.town?.name);
+      // When the stop point was remote and we anchored on a nearby town, say so
+      // so the card reads "Lodging in Durango" instead of a confusing "No
+      // lodging found nearby" for a stop that's actually 8km from the town.
+      updateDayLodging(day.day, lodging, day.town?.name, anchorName);
     } catch {
       // Honest error state — without this the card spins on "Finding lodging…"
       // forever (the old comment claimed it kept "No lodging found nearby",
