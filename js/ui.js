@@ -80,15 +80,20 @@ export function formatDrive(seconds) {
   return h > 0 ? `≈ ${h}h ${m}m` : `≈ ${m}m`;
 }
 
-// Coordinate-based Maps link — reliably centers on the exact lodging spot.
-// (The old "name lat lon" free-text query mostly failed to resolve.)
-const mapsUrl = (spot) =>
-  `https://www.google.com/maps/search/?api=1&query=${spot.lat},${spot.lon}`;
+// Name+address query — Google resolves this to the actual business (street
+// view, phone, website, directions). A bare "lat,lon" query only drops a pin
+// at the coordinates with no business attached.
+export const mapsUrl = (spot) =>
+  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(spot.name + (spot.address ? `, ${spot.address}` : ''))}`;
 
-// Booking search by the nearest town (small motels rarely have their own
-// Booking listing; the town search reliably returns bookable stays).
-const bookingUrl = (townName, spot) =>
-  `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(townName || spot.name)}`;
+// The property's own website is the actual room listing (OSM tags carry it for
+// ~half of mapped hotels). Booking.com deep-links don't survive its redirect
+// (verified: ?ss= is dropped to a bare searchresults.html), so when OSM has no
+// website, search for the property by name+address — its own listing pages
+// (Booking, Expedia, the hotel site) rank at the top of those results.
+export const bookingUrl = (spot) =>
+  spot.website ||
+  `https://www.google.com/search?q=${encodeURIComponent(spot.name + (spot.address ? `, ${spot.address}` : '') + ' booking')}`;
 
 function buildLodgingList(lodging, townName) {
   const list = document.createElement('div');
@@ -110,7 +115,7 @@ function buildLodgingList(lodging, townName) {
 
     const bookingChip = document.createElement('a');
     bookingChip.className = 'lodging-chip lodging-chip--booking';
-    bookingChip.href = bookingUrl(townName, spot);
+    bookingChip.href = bookingUrl(spot);
     bookingChip.target = '_blank';
     bookingChip.rel = 'noopener';
     bookingChip.textContent = 'Booking';
@@ -185,4 +190,20 @@ export function updateDayLodging(dayNum, lodging, townName) {
   const card = document.querySelector(`#itinerary .itinerary-card[data-day="${dayNum}"]`);
   const list = card && card.querySelector('.lodging-list');
   if (list) list.replaceWith(buildLodgingList(lodging, townName));
+}
+
+// Live-update a day card's lodging list to an honest error state (called when
+// every Overpass mirror fails). Without this the card would spin on
+// "Finding lodging…" forever.
+export function updateDayLodgingError(dayNum, message) {
+  const card = document.querySelector(`#itinerary .itinerary-card[data-day="${dayNum}"]`);
+  const list = card && card.querySelector('.lodging-list');
+  if (!list) return;
+  const err = document.createElement('div');
+  err.className = 'lodging-list';
+  const none = document.createElement('div');
+  none.className = 'itinerary-none';
+  none.textContent = message;
+  err.appendChild(none);
+  list.replaceWith(err);
 }

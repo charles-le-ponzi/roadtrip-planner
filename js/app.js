@@ -1,5 +1,5 @@
 // app.js — orchestration (Task 9)
-import { attachAutocomplete, renderItinerary, updateDayTown, updateDayLodging } from './ui.js';
+import { attachAutocomplete, renderItinerary, updateDayTown, updateDayLodging, updateDayLodgingError } from './ui.js';
 import { fetchRoute } from './route.js';
 import { overpass, lodgingQuery, reverseGeocode } from './places.js';
 import { splitDays, computeDays } from './itinerary.js';
@@ -125,12 +125,31 @@ async function enrichDays(days, planId) {
       const lodgEls = await overpass(lodgingQuery(lat, lng));
       if (planId !== currentPlanId) return;
       const lodging = lodgEls
-        .map((el) => ({ name: el.tags?.name ?? 'Unnamed lodging', lat: el.lat ?? el.center?.lat, lon: el.lon ?? el.center?.lon }))
+        .map((el) => {
+          const tags = el.tags ?? {};
+          // US-style: "1701 Wynkoop Street, Denver" (number first, then street).
+          const address = [tags['addr:housenumber'], tags['addr:street'], tags['addr:city']].filter(Boolean).join(', ');
+          return {
+            name: tags.name ?? 'Unnamed lodging',
+            address: address || undefined,
+            website: tags.website || tags.url || undefined,
+            lat: el.lat ?? el.center?.lat,
+            lon: el.lon ?? el.center?.lon,
+          };
+        })
         .filter((l) => l.lat != null && l.lon != null)
+        // Prefer named properties: "Unnamed lodging" sinks to the bottom and is
+        // dropped once 6 named ones fill the list.
+        .sort((a, b) => (a.name === 'Unnamed lodging' ? 1 : 0) - (b.name === 'Unnamed lodging' ? 1 : 0))
         .slice(0, 6);
       day.lodging = lodging;
       updateDayLodging(day.day, lodging, day.town?.name);
-    } catch { /* no lodging found — card keeps "No lodging found nearby" */ }
+    } catch {
+      // Honest error state — without this the card spins on "Finding lodging…"
+      // forever (the old comment claimed it kept "No lodging found nearby",
+      // but the placeholder was never replaced on failure).
+      updateDayLodgingError(day.day, 'Couldn’t load lodging — check connection and re-plan');
+    }
   }
 }
 
