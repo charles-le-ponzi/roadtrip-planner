@@ -175,6 +175,7 @@ async function planTrip() {
     itineraryEl.replaceChildren(); // clear the loading skeleton on failure
     itineraryEl.classList.remove('open');
     itineraryEl.hidden = true;
+    console.error('Plan trip failed:', e);
     toast(friendlyRouteError(e));
   } finally {
     planBtn.disabled = false;

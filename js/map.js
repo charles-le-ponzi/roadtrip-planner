@@ -53,6 +53,34 @@ export function initMap(el) {
 }
 
 /**
+ * Run `fn` once the route layer has been compiled into the map's style.
+ *
+ * `map.addLayer` is asynchronous: the layer spec is readable immediately
+ * (so `map.getLayer` succeeds), but its paint properties are not — not until
+ * the style is recompiled on a later render frame. Calling
+ * `setPaintProperty`/`getPaintProperty` before that throws
+ * "Cannot read properties of undefined (reading 'value')". This is what broke
+ * the end-to-end flow: with `prefers-reduced-motion` (or any synchronous
+ * `fitBounds` jump), `moveend` fires in the same tick as `addLayer`, before
+ * compilation, and the draw-on/finalize paint calls crashed.
+ *
+ * We probe with `getPaintProperty` (which throws until compiled) and retry on
+ * the next animation frame until it succeeds or the layer is removed.
+ */
+function whenRouteLayerReady(map, fn) {
+  const tick = () => {
+    if (!map.getLayer(ROUTE_LAYER)) return; // route cleared while waiting
+    try {
+      map.getPaintProperty(ROUTE_LAYER, 'line-dashoffset');
+      fn();
+    } catch {
+      requestAnimationFrame(tick); // not compiled yet — try next frame
+    }
+  };
+  tick();
+}
+
+/**
  * Draw the trip route (a GeoJSON LineString geometry), fit the camera to it,
  * then animate the line drawing itself on. Safe to call repeatedly:
  * any previous route source/layer and markers are removed first.
@@ -93,8 +121,15 @@ export function drawRoute(map, geometry) {
       pendingMoveEnd = null;
     }
     if (!map.getLayer(ROUTE_LAYER)) return; // route cleared mid-flight
-    if (REDUCED_MOTION) finalizeRouteLine(map);
-    else animateDrawOn(map, geometry.coordinates);
+    // The layer is only readable once the style has recompiled (a later frame),
+    // so defer the paint-property work until then. This is the fix for the
+    // end-to-end crash: on a synchronous fitBounds jump, moveend fired before
+    // compilation and setPaintProperty threw.
+    whenRouteLayerReady(map, () => {
+      if (!map.getLayer(ROUTE_LAYER)) return;
+      if (REDUCED_MOTION) finalizeRouteLine(map);
+      else animateDrawOn(map, geometry.coordinates);
+    });
   };
   pendingMoveEnd = beginDrawOn;
   map.once('moveend', beginDrawOn);
